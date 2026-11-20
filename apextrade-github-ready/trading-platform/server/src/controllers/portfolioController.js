@@ -1,5 +1,4 @@
 import { portfolioService } from '../services/portfolioService.js';
-import { matchingEngine } from '../engine/matchingEngine.js';
 import { simulator } from '../engine/marketSimulator.js';
 
 export const portfolioController = {
@@ -43,7 +42,7 @@ export const portfolioController = {
 
   claimFaucet: (req, res) => {
     try {
-      const { amount = 10000 } = req.body || {};
+      const { amount = 10000 } = req.body;
       const balances = portfolioService.claimFaucet(Number(amount));
       res.json({ success: true, data: balances, message: `Successfully deposited $${amount} USDT testnet funds.` });
     } catch (err) {
@@ -63,7 +62,6 @@ export const portfolioController = {
 
   resetAll: (req, res) => {
     try {
-      matchingEngine.resetAll();
       const portfolio = portfolioService.resetAll();
       res.json({ success: true, data: portfolio, message: 'Portfolio has been reset to defaults.' });
     } catch (err) {

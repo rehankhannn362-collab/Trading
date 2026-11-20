@@ -26,19 +26,12 @@ export class MatchingEngine {
       throw new Error(`Invalid order type: ${type}. Must be MARKET or LIMIT`);
     }
 
-    const rawQuantity = Number(quantity);
-    if (!Number.isFinite(rawQuantity) || rawQuantity <= 0) {
-      throw new Error('Quantity must be a finite number greater than zero');
-    }
-    const qty = Number(rawQuantity.toFixed(market.quantityPrecision));
-    if (qty < market.minQuantity) {
+    const qty = Number(Number(quantity).toFixed(market.quantityPrecision));
+    if (isNaN(qty) || qty < market.minQuantity) {
       throw new Error(`Minimum order quantity for ${symbol} is ${market.minQuantity}`);
     }
 
-    const lev = leverage === undefined ? 1 : Number(leverage);
-    if (!Number.isInteger(lev) || lev < 1 || lev > market.maxLeverage) {
-      throw new Error(`Leverage must be a whole number between 1x and ${market.maxLeverage}x`);
-    }
+    const lev = Math.min(Math.max(1, Math.round(Number(leverage) || 1)), market.maxLeverage);
     const orderId = `ord_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
     const now = Date.now();
 
@@ -47,7 +40,7 @@ export class MatchingEngine {
 
     if (type === 'MARKET') {
       // Execute immediately against market mark price with slippage
-      const basePrice = Number(currentMarketPrice) > 0 ? Number(currentMarketPrice) : market.basePrice;
+      const basePrice = currentMarketPrice || market.basePrice;
       const slippageRate = (side === 'BUY' ? 1 : -1) * 0.0002;
       const fillPrice = Number((basePrice * (1 + slippageRate)).toFixed(market.pricePrecision));
       const fee = Number((fillPrice * qty * market.takerFee).toFixed(4));
@@ -101,8 +94,7 @@ export class MatchingEngine {
 
     if (isImmediatelyMarketable) {
       // Immediate taker fill at current market price or better
-      // A marketable limit order gets the current price (price improvement).
-      const fillPrice = currentPrice;
+      const fillPrice = limitPrice;
       const fee = Number((fillPrice * qty * market.takerFee).toFixed(4));
       const positionSide = side === 'BUY' ? 'LONG' : 'SHORT';
 
@@ -193,8 +185,7 @@ export class MatchingEngine {
 
       if (matched) {
         const market = getMarket(symbol);
-        // Resting limit orders execute at the triggering market price, not the limit.
-        const fillPrice = Number(currentPrice);
+        const fillPrice = order.price;
         const fee = Number((fillPrice * order.quantity * (market?.makerFee || 0.0002)).toFixed(4));
         const positionSide = order.side === 'BUY' ? 'LONG' : 'SHORT';
 
@@ -224,17 +215,6 @@ export class MatchingEngine {
     }
 
     return executedFills;
-  }
-
-  cancelAllOrders() {
-    const cancelled = [];
-    for (const orderId of [...this.openOrders.keys()]) cancelled.push(this.cancelOrder(orderId));
-    return cancelled;
-  }
-
-  resetAll() {
-    this.cancelAllOrders();
-    this.orderHistory = [];
   }
 
   getOpenOrders(symbol = null) {
