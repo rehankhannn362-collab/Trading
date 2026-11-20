@@ -1,6 +1,8 @@
-# ApexTrade — Production-Grade Trading Platform Template
+# ApexTrade — Simulated Trading Platform Starter Template
 
-A modern, full-stack financial trading terminal and real-time execution engine built with **Node.js, Express, WebSockets, React 19, Tailwind CSS, and TradingView Lightweight Charts**.
+A full-stack **simulated trading platform starter** built with **Node.js, Express, WebSockets, React, Tailwind CSS, and TradingView Lightweight Charts**. It includes a live market simulator, demo wallet, order entry, simulated matching, portfolio tracking, and a trading terminal.
+
+> **Important:** ApexTrade is a software template and educational/demo environment. It does not connect to a regulated broker, route orders to an exchange, or execute real-money trades. Market prices and liquidity are simulated. It is not investment advice or a production brokerage system.
 
 ---
 
@@ -90,7 +92,7 @@ trading-platform/
 ## 🚀 Quick Start Guide
 
 ### Prerequisites
-- **Node.js**: v18.0.0 or higher
+- **Node.js**: v20.19+ or v22.12+ (recommended for current Vite tooling)
 - **npm**: v9.0.0 or higher
 
 ### 1. Installation
@@ -187,6 +189,21 @@ Available channels:
 
 ---
 
+## 🔐 Security, Scope & Production Checklist
+
+This version runs as a **single shared demo account** with in-memory state. It is suitable for local demos, learning, evaluation, and as a starter codebase—not for public multi-user hosting or real customer funds.
+
+Before turning it into a public service, implement and independently test:
+1. User registration, secure password hashing, verified sessions/JWT rotation, logout and account recovery.
+2. Per-user isolation for balances, orders, positions, trade history and WebSocket subscriptions.
+3. Persistent storage with migrations, backups, transaction boundaries and audit logs.
+4. Server-side authorization on every REST and WebSocket action; never trust client-supplied user IDs.
+5. Rate limits, abuse controls, secure headers, secrets management, HTTPS/WSS and appropriate CSRF protections.
+6. Broker/exchange integration, reconciliation, idempotent order submission, licensed market data, monitoring and incident response—only where legally permitted.
+7. Jurisdiction-specific legal, financial-services, privacy and consumer-protection review before offering real trading.
+
+The demo faucet is capped at $10,000 per request, but this is not a substitute for authentication or abuse protection. Do not deploy the current shared demo API as a public financial service.
+
 ## ⚙️ Extending the Platform
 
 1. **Adding New Pairs**: Add entries to `server/src/config/markets.js` specifying `symbol`, `baseAsset`, `quoteAsset`, `pricePrecision`, `quantityPrecision`, and `volatility`.
@@ -194,6 +211,10 @@ Available channels:
 3. **Database Persistence**: Replace `in-memory` arrays in `server/src/services/portfolioService.js` with SQLite, PostgreSQL, MongoDB, or Prisma.
 
 ---
+
+## 📦 Gumroad Product Notes
+
+This is a starter template. Buyers should receive the source code, setup instructions, and a clear list of included demo features and limitations. Do not market it as a live broker, exchange, production-ready fintech system, or source of real market prices. Confirm that every included asset may be redistributed under its applicable license before selling.
 
 ## 📄 License
 MIT License. Free to use, adapt, and build upon.

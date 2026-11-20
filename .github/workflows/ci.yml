@@ -1,0 +1,46 @@
+name: ApexTrade CI
+
+on:
+  push:
+    branches: [main, apextrade-stability-updates]
+  pull_request:
+    branches: [main]
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install root dependencies
+        working-directory: apextrade-github-ready/trading-platform
+        run: npm install
+      - name: Install server dependencies
+        working-directory: apextrade-github-ready/trading-platform/server
+        run: npm install
+      - name: Install client dependencies
+        working-directory: apextrade-github-ready/trading-platform/client
+        run: npm install
+      - name: Audit server dependencies
+        working-directory: apextrade-github-ready/trading-platform/server
+        run: |
+          npm audit --json > audit.json || true
+          node -e "const a=require('./audit.json'); console.log(JSON.stringify(Object.entries(a.vulnerabilities || {}).map(([name,v]) => ({name,severity:v.severity,range:v.range,fixAvailable:v.fixAvailable,via:v.via.map(x => typeof x === 'string' ? x : x.title)})), null, 2))"
+          npm audit --audit-level=moderate
+      - name: Audit client dependencies
+        working-directory: apextrade-github-ready/trading-platform/client
+        run: |
+          npm audit --json > audit.json || true
+          node -e "const a=require('./audit.json'); console.log(JSON.stringify(Object.entries(a.vulnerabilities || {}).map(([name,v]) => ({name,severity:v.severity,range:v.range,fixAvailable:v.fixAvailable,via:v.via.map(x => typeof x === 'string' ? x : x.title)})), null, 2))"
+          npm audit --audit-level=moderate
+      - name: Run backend tests
+        working-directory: apextrade-github-ready/trading-platform
+        run: npm test
+      - name: Build frontend
+        working-directory: apextrade-github-ready/trading-platform
+        run: npm run build

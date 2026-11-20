@@ -59,7 +59,7 @@ test('Trading Engine Suite', async (t) => {
     const fills = matchingEngine.checkTriggers('ETH/USDT', 3465.00);
     assert.equal(fills.length, 1);
     assert.equal(fills[0].status, 'FILLED');
-    assert.equal(fills[0].price, 3470.00);
+    assert.equal(fills[0].price, 3465.00); // Better execution than the 3470 limit.
 
     const openOrders = matchingEngine.getOpenOrders('ETH/USDT');
     assert.equal(openOrders.length, 0, 'Limit order should no longer be open');
@@ -145,4 +145,49 @@ test('Trading Engine Suite', async (t) => {
     const pos = portfolioService.positions.find(p => p.symbol === 'ETH/USDT');
     assert.equal(pos, undefined, 'Position should be closed after SL');
   });
+  await t.test('marketable LIMIT orders receive the current market price', () => {
+    portfolioService.resetAll();
+    matchingEngine.resetAll();
+    const order = matchingEngine.placeOrder({
+      symbol: 'AAPL/USD', side: 'BUY', type: 'LIMIT',
+      price: 240, quantity: 1, leverage: 1, currentMarketPrice: 230
+    });
+    assert.equal(order.status, 'FILLED');
+    assert.equal(order.price, 230);
+    assert.equal(order.filled, 1);
+  });
+
+  await t.test('partial close realizes PnL using the existing LONG side', () => {
+    portfolioService.resetAll();
+    const long = portfolioService.openPosition({
+      symbol: 'BTC/USDT', side: 'LONG', entryPrice: 60000, quantity: 1, leverage: 10
+    });
+    const remainder = portfolioService.openPosition({
+      symbol: 'BTC/USDT', side: 'SHORT', entryPrice: 65000, quantity: 0.4, leverage: 10
+    });
+    assert.equal(remainder.id, long.id);
+    assert.equal(remainder.side, 'LONG');
+    assert.equal(remainder.quantity, 0.6);
+    assert.equal(portfolioService.getClosedTrades(1)[0].realizedPnl, 2000);
+  });
+
+  await t.test('demo faucet rejects negative, non-finite and excessive credits', () => {
+    portfolioService.resetAll();
+    assert.throws(() => portfolioService.claimFaucet(-100));
+    assert.throws(() => portfolioService.claimFaucet(Infinity));
+    assert.throws(() => portfolioService.claimFaucet(10001));
+  });
+
+  await t.test('reset clears outstanding limit orders from the matching engine', () => {
+    portfolioService.resetAll();
+    matchingEngine.resetAll();
+    const order = matchingEngine.placeOrder({
+      symbol: 'SOL/USDT', side: 'BUY', type: 'LIMIT',
+      price: 100, quantity: 1, leverage: 1, currentMarketPrice: 160
+    });
+    assert.equal(order.status, 'OPEN');
+    matchingEngine.resetAll();
+    assert.equal(matchingEngine.getOpenOrders().length, 0);
+  });
+
 });
