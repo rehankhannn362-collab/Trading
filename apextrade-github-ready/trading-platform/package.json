@@ -1,7 +1,7 @@
 {
   "name": "apex-trading-platform",
   "version": "1.0.0",
-  "description": "Full-stack simulated trading platform starter template",
+  "description": "Production-grade Full-Stack Trading Platform Template",
   "private": true,
   "scripts": {
     "dev": "concurrently -n \"SERVER,CLIENT\" -c \"cyan,magenta\" \"npm run dev:server\" \"npm run dev:client\"",
