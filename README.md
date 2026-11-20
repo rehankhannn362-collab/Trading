@@ -1,1 +1,0 @@
-Initial upload of the ApexTrade project. Full project files are being added.
