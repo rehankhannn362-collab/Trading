@@ -16,11 +16,6 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 22
-          cache: npm
-          cache-dependency-path: |
-            apextrade-github-ready/trading-platform/package-lock.json
-            apextrade-github-ready/trading-platform/server/package-lock.json
-            apextrade-github-ready/trading-platform/client/package-lock.json
       - name: Install root dependencies
         working-directory: apextrade-github-ready/trading-platform
         run: npm install
