@@ -100,12 +100,22 @@ export default function TradingChart() {
     });
 
     // Candlestick series
+    const initialPrecision = Number.isInteger(activeMarket?.pricePrecision)
+      ? activeMarket.pricePrecision
+      : 2;
+    const priceFormat = {
+      type: 'price',
+      precision: initialPrecision,
+      minMove: 1 / (10 ** initialPrecision)
+    };
+
     const candleSeries = chart.addCandlestickSeries({
       upColor: '#0ecb81',
       downColor: '#f6465d',
       borderVisible: false,
       wickUpColor: '#0ecb81',
-      wickDownColor: '#f6465d'
+      wickDownColor: '#f6465d',
+      priceFormat
     });
 
     // Volume histogram series:
@@ -130,7 +140,8 @@ export default function TradingChart() {
       color: '#8b5cf6',
       lineWidth: 1.5,
       priceLineVisible: false,
-      lastValueVisible: false
+      lastValueVisible: false,
+      priceFormat
     });
 
     chartInstanceRef.current = chart;
@@ -162,6 +173,25 @@ export default function TradingChart() {
       chartInstanceRef.current = null;
     };
   }, []);
+
+  // Keep the visible price scale precise when switching between markets.
+  // Forex pairs commonly need 5 decimal places, while crypto may use fewer or more.
+  useEffect(() => {
+    const precision = Number.isInteger(activeMarket?.pricePrecision)
+      ? activeMarket.pricePrecision
+      : 2;
+    const priceFormat = {
+      type: 'price',
+      precision,
+      minMove: 1 / (10 ** precision)
+    };
+
+    candleSeriesRef.current?.applyOptions({ priceFormat });
+    smaSeriesRef.current?.applyOptions({ priceFormat });
+    chartInstanceRef.current?.applyOptions({
+      rightPriceScale: { visible: true, borderColor: '#1e2638' }
+    });
+  }, [activeMarket?.pricePrecision, selectedSymbol]);
 
   // Update chart data whenever candles list changes (symbol or timeframe switch)
   useEffect(() => {
