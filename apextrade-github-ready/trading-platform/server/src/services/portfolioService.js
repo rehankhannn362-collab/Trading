@@ -117,7 +117,9 @@ export class PortfolioService {
         if (existing.quantity > quantity) {
           // Partial close
           const remainingQty = existing.quantity - quantity;
-          const closedPnl = (side === 'BUY' ? (existing.entryPrice - entryPrice) : (entryPrice - existing.entryPrice)) * quantity;
+          const closedPnl = (existing.side === 'LONG'
+            ? (entryPrice - existing.entryPrice)
+            : (existing.entryPrice - entryPrice)) * quantity;
           
           this.balances[quote] += closedPnl;
           existing.quantity = Number(remainingQty.toFixed(market.quantityPrecision));
@@ -272,9 +274,13 @@ export class PortfolioService {
   }
 
   claimFaucet(amount = 10000) {
-    this.balances.USDT = (this.balances.USDT || 0) + amount;
-    this.balances.USD = (this.balances.USD || 0) + amount;
-    return this.balances;
+    const credit = Number(amount);
+    if (!Number.isFinite(credit) || credit <= 0 || credit > 10000) {
+      throw new Error('Demo faucet amount must be between 0 and 10,000');
+    }
+    this.balances.USDT = Number(((this.balances.USDT || 0) + credit).toFixed(2));
+    this.balances.USD = Number(((this.balances.USD || 0) + credit).toFixed(2));
+    return this.getBalances();
   }
 
   resetAll() {
