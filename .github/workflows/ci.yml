@@ -1,0 +1,38 @@
+name: ApexTrade CI
+
+on:
+  push:
+    branches: [main, apextrade-stability-updates]
+  pull_request:
+    branches: [main]
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: |
+            apextrade-github-ready/trading-platform/package-lock.json
+            apextrade-github-ready/trading-platform/server/package-lock.json
+            apextrade-github-ready/trading-platform/client/package-lock.json
+      - name: Install root dependencies
+        working-directory: apextrade-github-ready/trading-platform
+        run: npm install
+      - name: Install server dependencies
+        working-directory: apextrade-github-ready/trading-platform/server
+        run: npm install
+      - name: Install client dependencies
+        working-directory: apextrade-github-ready/trading-platform/client
+        run: npm install
+      - name: Run backend tests
+        working-directory: apextrade-github-ready/trading-platform
+        run: npm test
+      - name: Build frontend
+        working-directory: apextrade-github-ready/trading-platform
+        run: npm run build
