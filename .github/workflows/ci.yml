@@ -26,6 +26,16 @@ jobs:
       - name: Install client dependencies
         working-directory: apextrade-github-ready/trading-platform/client
         run: npm install
+      - name: Audit server dependencies
+        working-directory: apextrade-github-ready/trading-platform/server
+        run: |
+          npm audit --json > audit.json || true
+          node -e "const a=require('./audit.json'); console.log(JSON.stringify(Object.entries(a.vulnerabilities || {}).map(([name,v]) => ({name,severity:v.severity,range:v.range,fixAvailable:v.fixAvailable,via:v.via.map(x => typeof x === 'string' ? x : x.title)})), null, 2))"
+      - name: Audit client dependencies
+        working-directory: apextrade-github-ready/trading-platform/client
+        run: |
+          npm audit --json > audit.json || true
+          node -e "const a=require('./audit.json'); console.log(JSON.stringify(Object.entries(a.vulnerabilities || {}).map(([name,v]) => ({name,severity:v.severity,range:v.range,fixAvailable:v.fixAvailable,via:v.via.map(x => typeof x === 'string' ? x : x.title)})), null, 2))"
       - name: Run backend tests
         working-directory: apextrade-github-ready/trading-platform
         run: npm test
