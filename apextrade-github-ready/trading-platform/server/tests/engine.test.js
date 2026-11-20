@@ -59,7 +59,7 @@ test('Trading Engine Suite', async (t) => {
     const fills = matchingEngine.checkTriggers('ETH/USDT', 3465.00);
     assert.equal(fills.length, 1);
     assert.equal(fills[0].status, 'FILLED');
-    assert.equal(fills[0].price, 3470.00);
+    assert.equal(fills[0].price, 3465.00); // Better execution than the 3470 limit.
 
     const openOrders = matchingEngine.getOpenOrders('ETH/USDT');
     assert.equal(openOrders.length, 0, 'Limit order should no longer be open');
