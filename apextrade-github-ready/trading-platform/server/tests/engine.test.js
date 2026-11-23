@@ -190,4 +190,67 @@ test('Trading Engine Suite', async (t) => {
     assert.equal(matchingEngine.getOpenOrders().length, 0);
   });
 
+
+  await t.test('deducts entry and exit fees from quote balance and records net realized PnL', () => {
+    portfolioService.resetAll();
+    matchingEngine.resetAll();
+    const startingBalance = portfolioService.getBalances().USDT;
+    const order = matchingEngine.placeOrder({
+      symbol: 'BTC/USDT', side: 'BUY', type: 'MARKET',
+      quantity: 0.1, leverage: 10, currentMarketPrice: 65000
+    });
+
+    assert.ok(order.fee > 0);
+    assert.equal(portfolioService.getBalances().USDT, Number((startingBalance - order.fee).toFixed(8)));
+
+    const position = portfolioService.positions.find(p => p.symbol === 'BTC/USDT');
+    assert.equal(position.entryFees, order.fee);
+
+    const closed = portfolioService.closePosition(position.id, 66000);
+    const expectedExitFee = 66000 * 0.1 * 0.0005;
+    assert.equal(closed.exitFee, Number(expectedExitFee.toFixed(8)));
+    assert.equal(closed.realizedPnl, Number((closed.grossPnl - closed.entryFee - closed.exitFee).toFixed(2)));
+    assert.equal(
+      portfolioService.getBalances().USDT,
+      Number((startingBalance - order.fee + closed.grossPnl - expectedExitFee).toFixed(8))
+    );
+  });
+
+  await t.test('includes both USD and USDT quote balances in portfolio equity', () => {
+    portfolioService.resetAll();
+    portfolioService.openPosition({
+      symbol: 'AAPL/USD', side: 'LONG', entryPrice: 230,
+      quantity: 1, leverage: 1, entryFee: 0.1
+    });
+
+    const portfolio = portfolioService.getPortfolio({ 'AAPL/USD': 240 });
+    assert.equal(portfolio.equityByCurrency.USD, 10009.9);
+    assert.equal(portfolio.equityByCurrency.USDT, 10000);
+    assert.equal(portfolio.equity, 20009.9);
+    assert.equal(portfolio.cashBalance, 19999.9);
+  });
+
+  await t.test('allows an opposite-side partial close when free margin is low', () => {
+    portfolioService.resetAll();
+    matchingEngine.resetAll();
+    const long = portfolioService.openPosition({
+      symbol: 'BTC/USDT', side: 'LONG', entryPrice: 60000,
+      quantity: 0.1, leverage: 10
+    });
+    portfolioService.balances.USDT = 100;
+
+    const closeOrder = matchingEngine.placeOrder({
+      symbol: 'BTC/USDT', side: 'SELL', type: 'MARKET',
+      quantity: 0.05, leverage: 10, currentMarketPrice: 59000
+    });
+
+    assert.equal(closeOrder.status, 'FILLED');
+    const remaining = portfolioService.positions.find(p => p.id === long.id);
+    assert.ok(remaining);
+    assert.equal(remaining.side, 'LONG');
+    assert.equal(remaining.quantity, 0.05);
+    assert.ok(closeOrder.fee > 0);
+    assert.equal(portfolioService.getClosedTrades(1)[0].reason, 'PARTIAL_CLOSE');
+  });
+
 });
