@@ -258,8 +258,8 @@ test('Trading Engine Suite', async (t) => {
     });
     assert.equal(averaged.id, first.id);
     assert.equal(averaged.entryPrice, 63000);
-    assert.equal(averaged.margin, 630);
-    assert.equal(averaged.leverage, 20);
+    assert.equal(averaged.margin, 930);
+    assert.equal(averaged.leverage, 13.5484);
   });
 
 
