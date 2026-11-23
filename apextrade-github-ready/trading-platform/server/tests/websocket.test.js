@@ -68,6 +68,7 @@ test('WebSocket sends initial snapshots and supports channel subscriptions and p
     assert.equal(error.message, 'Invalid JSON payload');
 
     ws.send(JSON.stringify({ action: 'unsubscribe', channel: 'depth:BTC/USDT' }));
+    await new Promise(resolve => setTimeout(resolve, 20));
     assert.equal([...service.clients.values()].some(channels => channels.has('depth:BTC/USDT')), false);
   } finally {
     ws.terminate();
