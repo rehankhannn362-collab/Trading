@@ -23,7 +23,7 @@ server.listen(PORT, () => {
 });
 
 const gracefulShutdown = () => {
-  console.log('\\nShutting down gracefully...');
+  console.log('Shutting down gracefully...');
   simulator.stop();
   wsService.close();
   server.close(() => {
