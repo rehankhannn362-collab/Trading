@@ -93,8 +93,8 @@ export default function OrderForm() {
     if (numericPrice <= 0) return;
     const available = Math.max(0, availableMarginForQuote);
     const targetMargin = available * (percent / 100);
-    const targetValue = targetMargin * leverage;
-    const calculatedQty = targetValue / numericPrice;
+    const costPerUnit = numericPrice * ((1 / leverage) + feeRate);
+    const calculatedQty = costPerUnit > 0 ? targetMargin / costPerUnit : 0;
     setQuantity(calculatedQty.toFixed(activeMarket.quantityPrecision));
   };
 
@@ -286,7 +286,7 @@ export default function OrderForm() {
                     <span className="text-trade-green font-medium">Take Profit (TP)</span>
                     {estimatedTpPnl !== null && (
                       <span className="text-trade-green font-semibold">
-                        Est. +${estimatedTpPnl}
+                        Est. {estimatedTpPnl >= 0 ? '+' : ''}${estimatedTpPnl} {quoteAsset}
                       </span>
                     )}
                   </div>
@@ -318,7 +318,7 @@ export default function OrderForm() {
                     <span className="text-trade-red font-medium">Stop Loss (SL)</span>
                     {estimatedSlPnl !== null && (
                       <span className="text-trade-red font-semibold">
-                        Est. ${estimatedSlPnl}
+                        Est. ${estimatedSlPnl} {quoteAsset}
                       </span>
                     )}
                   </div>
@@ -373,7 +373,7 @@ export default function OrderForm() {
             )}
             <div className="flex justify-between text-slate-500">
               <span>Est. Fee ({orderType}):</span>
-              <span>${estimatedFee.toFixed(4)}</span>
+              <span>${estimatedFee.toFixed(8)} {quoteAsset}</span>
             </div>
           </div>
         </div>
