@@ -39,17 +39,19 @@ test('WebSocket sends initial snapshots and supports channel subscriptions and p
   });
 
   const ws = new WebSocket(`ws://127.0.0.1:${server.address().port}/ws`);
+  const tickerSnapshotPromise = waitForMessage(ws, msg => msg.type === 'snapshot:tickers');
+  const portfolioSnapshotPromise = waitForMessage(ws, msg => msg.type === 'snapshot:portfolio');
   try {
     await new Promise((resolve, reject) => {
       ws.once('open', resolve);
       ws.once('error', reject);
     });
 
-    const tickerSnapshot = await waitForMessage(ws, msg => msg.type === 'snapshot:tickers');
+    const tickerSnapshot = await tickerSnapshotPromise;
     assert.ok(Array.isArray(tickerSnapshot.data));
     assert.ok(tickerSnapshot.data.some(ticker => ticker.symbol === 'BTC/USDT'));
 
-    const portfolioSnapshot = await waitForMessage(ws, msg => msg.type === 'snapshot:portfolio');
+    const portfolioSnapshot = await portfolioSnapshotPromise;
     assert.ok(Array.isArray(portfolioSnapshot.data.positions));
 
     ws.send(JSON.stringify({ action: 'subscribe', channel: 'depth:BTC/USDT' }));
@@ -66,7 +68,7 @@ test('WebSocket sends initial snapshots and supports channel subscriptions and p
     assert.equal(error.message, 'Invalid JSON payload');
 
     ws.send(JSON.stringify({ action: 'unsubscribe', channel: 'depth:BTC/USDT' }));
-    assert.equal(service.clients.get(ws).has('depth:BTC/USDT'), false);
+    assert.equal([...service.clients.values()].some(channels => channels.has('depth:BTC/USDT')), false);
   } finally {
     ws.terminate();
     service.close();
