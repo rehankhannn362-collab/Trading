@@ -258,7 +258,7 @@ export class PortfolioService {
           entryFee: fee - closingFee
         });
       }
-      return closeQty < qty ? existing : null;
+      return this.positions.includes(existing) ? existing : null;
     }
 
     const availableBefore = quoteBalance - this.getMarginUsed(quote);
