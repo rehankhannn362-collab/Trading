@@ -22,17 +22,23 @@ export class AccountRegistry {
   constructor({
     defaultAccountId = 'demo',
     defaultPortfolio = defaultPortfolioService,
-    defaultEngine = defaultMatchingEngine,
+    defaultEngine = null,
     orderBook = defaultOrderBook
   } = {}) {
     this.orderBook = orderBook;
     this.defaultAccountId = validateAccountId(defaultAccountId);
     this.accounts = new Map();
 
+    const matchingEngine = defaultEngine || (
+      defaultPortfolio === defaultPortfolioService && orderBook === defaultOrderBook
+        ? defaultMatchingEngine
+        : new MatchingEngine({ portfolioService: defaultPortfolio, orderBook })
+    );
+
     this.accounts.set(this.defaultAccountId, {
       id: this.defaultAccountId,
       portfolioService: defaultPortfolio,
-      matchingEngine: defaultEngine
+      matchingEngine
     });
   }
 
