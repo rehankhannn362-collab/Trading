@@ -6,14 +6,13 @@ import { MatchingEngine } from '../src/engine/matchingEngine.js';
 import { OrderBookManager } from '../src/engine/orderBook.js';
 
 function createRegistry() {
+  const defaultPortfolio = new PortfolioService();
+  const orderBook = new OrderBookManager();
   return new AccountRegistry({
     defaultAccountId: 'demo-test',
-    defaultPortfolio: new PortfolioService(),
-    defaultEngine: new MatchingEngine({
-      portfolioService: new PortfolioService(),
-      orderBook: new OrderBookManager()
-    }),
-    orderBook: new OrderBookManager()
+    defaultPortfolio,
+    defaultEngine: new MatchingEngine({ portfolioService: defaultPortfolio, orderBook }),
+    orderBook
   });
 }
 
@@ -45,6 +44,16 @@ test('registry creates uniquely identified accounts with independent services', 
   assert.equal(registry.getAccount('user-b'), second);
   assert.equal(registry.hasAccount('user-a'), true);
   assert.equal(registry.hasAccount('missing'), false);
+});
+
+test('registry generates unique IDs when callers do not provide one', () => {
+  const registry = createRegistry();
+  const first = registry.createAccount();
+  const second = registry.createAccount();
+
+  assert.ok(first.id);
+  assert.ok(second.id);
+  assert.notEqual(first.id, second.id);
 });
 
 test('registry rejects duplicate and invalid account IDs', () => {
