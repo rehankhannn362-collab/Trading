@@ -16,6 +16,11 @@ export default function OrderForm() {
   const [takeProfit, setTakeProfit] = useState('');
   const [stopLoss, setStopLoss] = useState('');
 
+  useEffect(() => {
+    const maxLeverage = Number(activeMarket?.maxLeverage) || 1;
+    if (leverage > maxLeverage) setLeverage(maxLeverage);
+  }, [activeMarket?.symbol, activeMarket?.maxLeverage, leverage]);
+
   // When orderPrefillPrice is clicked from OrderBook, update price
   useEffect(() => {
     if (orderPrefillPrice !== null) {
@@ -36,6 +41,10 @@ export default function OrderForm() {
   const numericQty = Number(quantity) || 0;
   const orderValue = numericPrice * numericQty;
   const marginRequired = leverage > 0 ? orderValue / leverage : orderValue;
+  const quoteAsset = activeMarket?.quoteAsset || 'USDT';
+  const availableMarginForQuote = Number(
+    portfolio.availableMarginByCurrency?.[quoteAsset] ?? (quoteAsset === 'USDT' ? portfolio.availableMargin : 0)
+  );
   const feeRate = orderType === 'MARKET' ? activeMarket.takerFee : activeMarket.makerFee;
   const estimatedFee = orderValue * feeRate;
 
@@ -82,10 +91,10 @@ export default function OrderForm() {
 
   const handlePercentageClick = (percent) => {
     if (numericPrice <= 0) return;
-    const available = portfolio.availableMargin || 0;
+    const available = Math.max(0, availableMarginForQuote);
     const targetMargin = available * (percent / 100);
-    const targetValue = targetMargin * leverage;
-    const calculatedQty = targetValue / numericPrice;
+    const costPerUnit = numericPrice * ((1 / leverage) + feeRate);
+    const calculatedQty = costPerUnit > 0 ? targetMargin / costPerUnit : 0;
     setQuantity(calculatedQty.toFixed(activeMarket.quantityPrecision));
   };
 
@@ -185,12 +194,10 @@ export default function OrderForm() {
                 onChange={(e) => setLeverage(Number(e.target.value))}
                 className="bg-dark-750 text-brand-gold border border-dark-700 rounded px-2 py-1 text-[11px] font-bold focus:outline-none focus:border-brand-gold"
               >
-                <option value={1}>1x Spot</option>
-                <option value={2}>2x</option>
-                <option value={5}>5x</option>
-                <option value={10}>10x</option>
-                <option value={20}>20x</option>
-                <option value={50}>50x</option>
+                {[...new Set([1, 2, 5, 10, 20, 50, 100, Number(activeMarket.maxLeverage)])]
+                  .filter(value => value <= Number(activeMarket.maxLeverage || 1))
+                  .sort((a, b) => a - b)
+                  .map(value => <option key={value} value={value}>{value === 1 ? '1x Spot' : `${value}x`}</option>)}
               </select>
             </div>
           </div>
@@ -279,7 +286,7 @@ export default function OrderForm() {
                     <span className="text-trade-green font-medium">Take Profit (TP)</span>
                     {estimatedTpPnl !== null && (
                       <span className="text-trade-green font-semibold">
-                        Est. +${estimatedTpPnl}
+                        Est. {estimatedTpPnl >= 0 ? '+' : ''}${estimatedTpPnl} {quoteAsset}
                       </span>
                     )}
                   </div>
@@ -311,7 +318,7 @@ export default function OrderForm() {
                     <span className="text-trade-red font-medium">Stop Loss (SL)</span>
                     {estimatedSlPnl !== null && (
                       <span className="text-trade-red font-semibold">
-                        Est. ${estimatedSlPnl}
+                        Est. ${estimatedSlPnl} {quoteAsset}
                       </span>
                     )}
                   </div>
@@ -344,14 +351,14 @@ export default function OrderForm() {
           <div className="flex justify-between text-[11px] pt-1 border-t border-dark-750 text-slate-400">
             <span>Available Margin:</span>
             <span className="text-white font-semibold">
-              ${(portfolio.availableMargin || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USDT
+              ${availableMarginForQuote.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {quoteAsset}
             </span>
           </div>
 
           {/* Cost Breakdown */}
           <div className="bg-dark-750/50 rounded p-2.5 space-y-1.5 text-[11px] text-slate-400 border border-dark-700">
             <div className="flex justify-between">
-              <span>Order Value:</span>
+              <span>Order Value ({quoteAsset}):</span>
               <span className="text-slate-200">${orderValue.toFixed(2)}</span>
             </div>
             <div className="flex justify-between">
@@ -366,7 +373,7 @@ export default function OrderForm() {
             )}
             <div className="flex justify-between text-slate-500">
               <span>Est. Fee ({orderType}):</span>
-              <span>${estimatedFee.toFixed(4)}</span>
+              <span>${estimatedFee.toFixed(8)} {quoteAsset}</span>
             </div>
           </div>
         </div>

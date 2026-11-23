@@ -125,7 +125,7 @@ npm run dev
 
 ### 3. Running Unit Tests
 
-Run the backend matching engine test suite:
+Run the backend matching-engine suite and frontend portfolio-valuation regression tests:
 
 ```bash
 npm test
