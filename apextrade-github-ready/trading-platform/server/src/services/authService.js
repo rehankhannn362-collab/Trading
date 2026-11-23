@@ -60,10 +60,15 @@ export class AuthService {
     tokenTtlMs = TOKEN_TTL_MS,
     now = () => Date.now()
   } = {}) {
+    if (!Number.isFinite(tokenTtlMs) || tokenTtlMs <= 0) {
+      throw new RangeError('Session lifetime must be a positive number of milliseconds');
+    }
     this.accountRegistry = accountRegistry;
     this.tokenTtlMs = tokenTtlMs;
     this.now = now;
     this.usersByEmail = new Map();
+    this.usersById = new Map();
+    this.pendingRegistrations = new Set();
     this.sessionsByTokenHash = new Map();
   }
 
@@ -73,24 +78,30 @@ export class AuthService {
       throw new AuthError('Enter a valid email address.', 400, 'INVALID_EMAIL');
     }
     validatePassword(password);
-    if (this.usersByEmail.has(normalizedEmail)) {
+    if (this.usersByEmail.has(normalizedEmail) || this.pendingRegistrations.has(normalizedEmail)) {
       throw new AuthError('An account with this email already exists.', 409, 'EMAIL_ALREADY_REGISTERED');
     }
 
-    const salt = randomBytes(16).toString('hex');
-    const passwordHash = await scrypt(password, salt, KEY_LENGTH, SCRYPT_OPTIONS);
-    const account = this.accountRegistry.createAccount();
-    const user = {
-      id: randomUUID(),
-      email: normalizedEmail,
-      salt,
-      passwordHash,
-      accountId: account.id,
-      createdAt: new Date(this.now()).toISOString()
-    };
+    this.pendingRegistrations.add(normalizedEmail);
+    try {
+      const salt = randomBytes(16).toString('hex');
+      const passwordHash = await scrypt(password, salt, KEY_LENGTH, SCRYPT_OPTIONS);
+      const account = this.accountRegistry.createAccount();
+      const user = {
+        id: randomUUID(),
+        email: normalizedEmail,
+        salt,
+        passwordHash,
+        accountId: account.id,
+        createdAt: new Date(this.now()).toISOString()
+      };
 
-    this.usersByEmail.set(normalizedEmail, user);
-    return this.createSession(user);
+      this.usersByEmail.set(normalizedEmail, user);
+      this.usersById.set(user.id, user);
+      return this.createSession(user);
+    } finally {
+      this.pendingRegistrations.delete(normalizedEmail);
+    }
   }
 
   async login({ email, password } = {}) {
@@ -120,7 +131,7 @@ export class AuthService {
       return null;
     }
 
-    const user = [...this.usersByEmail.values()].find(item => item.id === session.userId);
+    const user = this.usersById.get(session.userId);
     if (!user) {
       this.sessionsByTokenHash.delete(tokenHash);
       return null;
@@ -134,8 +145,13 @@ export class AuthService {
   }
 
   createSession(user) {
+    const now = this.now();
+    for (const [tokenHash, session] of this.sessionsByTokenHash) {
+      if (session.expiresAt <= now) this.sessionsByTokenHash.delete(tokenHash);
+    }
+
     const token = randomBytes(32).toString('base64url');
-    const expiresAt = this.now() + this.tokenTtlMs;
+    const expiresAt = now + this.tokenTtlMs;
     this.sessionsByTokenHash.set(hashToken(token), {
       userId: user.id,
       expiresAt

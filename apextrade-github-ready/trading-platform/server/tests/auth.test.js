@@ -49,6 +49,19 @@ test('email addresses are unique without regard to case or surrounding whitespac
   );
 });
 
+test('concurrent registrations cannot create duplicate users for the same email', async () => {
+  const service = createAuthService();
+  const results = await Promise.allSettled([
+    service.register({ email: 'race@example.com', password: 'correct-horse-battery' }),
+    service.register({ email: ' RACE@example.com ', password: 'another-secure-password' })
+  ]);
+
+  assert.equal(results.filter(result => result.status === 'fulfilled').length, 1);
+  assert.equal(results.filter(result => result.status === 'rejected').length, 1);
+  assert.equal(service.usersByEmail.size, 1);
+  assert.equal(service.accountRegistry.listAccountIds().length, 2);
+});
+
 test('passwords are not stored in plaintext and login verifies the password', async () => {
   const service = createAuthService();
   await service.register({ email: 'person@example.com', password: 'correct-horse-battery' });
@@ -99,6 +112,11 @@ test('sessions expire and revoked tokens cannot be reused', async () => {
   assert.equal(service.revokeToken(nextSession.token), true);
   assert.equal(service.authenticate(nextSession.token), null);
   assert.equal(service.revokeToken(nextSession.token), false);
+});
+
+test('session lifetime must be positive and finite', () => {
+  assert.throws(() => createAuthService({ tokenTtlMs: 0 }), RangeError);
+  assert.throws(() => createAuthService({ tokenTtlMs: Infinity }), RangeError);
 });
 
 test('authentication middleware rejects missing and invalid bearer tokens', () => {
