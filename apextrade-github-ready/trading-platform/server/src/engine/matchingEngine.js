@@ -1,6 +1,6 @@
 import { getMarket } from '../config/markets.js';
 import { orderBookManager } from './orderBook.js';
-import { portfolioService } from '../services/portfolioService.js';
+import { portfolioService as defaultPortfolioService } from '../services/portfolioService.js';
 
 /**
  * Order Matching and Execution Engine
@@ -8,7 +8,9 @@ import { portfolioService } from '../services/portfolioService.js';
  * automatic trigger executions upon price movement, and fee calculations.
  */
 export class MatchingEngine {
-  constructor() {
+  constructor({ portfolioService = defaultPortfolioService, orderBook = orderBookManager } = {}) {
+    this.portfolioService = portfolioService;
+    this.orderBook = orderBook;
     this.openOrders = new Map(); // orderId -> order
     this.orderHistory = [];      // Array of past executed / cancelled orders
     this.fillListeners = new Set();
@@ -49,7 +51,7 @@ export class MatchingEngine {
 
       // Open position in portfolio service
       const positionSide = side === 'BUY' ? 'LONG' : 'SHORT';
-      const position = portfolioService.openPosition({
+      const position = this.portfolioService.openPosition({
         symbol,
         side: positionSide,
         entryPrice: fillPrice,
@@ -106,7 +108,7 @@ export class MatchingEngine {
       const fee = Number((fillPrice * qty * market.takerFee).toFixed(8));
       const positionSide = side === 'BUY' ? 'LONG' : 'SHORT';
 
-      const position = portfolioService.openPosition({
+      const position = this.portfolioService.openPosition({
         symbol,
         side: positionSide,
         entryPrice: fillPrice,
@@ -158,7 +160,7 @@ export class MatchingEngine {
     };
 
     this.openOrders.set(orderId, restingOrder);
-    orderBookManager.addUserOrder(restingOrder);
+    this.orderBook.addUserOrder(restingOrder);
 
     return restingOrder;
   }
@@ -173,7 +175,7 @@ export class MatchingEngine {
     order.cancelledAt = Date.now();
 
     this.openOrders.delete(orderId);
-    orderBookManager.removeUserOrder(orderId);
+    this.orderBook.removeUserOrder(orderId);
     this.orderHistory.unshift(order);
 
     return order;
@@ -199,7 +201,7 @@ export class MatchingEngine {
         const fee = Number((fillPrice * order.quantity * (market?.makerFee || 0.0002)).toFixed(8));
         const positionSide = order.side === 'BUY' ? 'LONG' : 'SHORT';
 
-        const position = portfolioService.openPosition({
+        const position = this.portfolioService.openPosition({
           symbol: order.symbol,
           side: positionSide,
           entryPrice: fillPrice,
@@ -217,7 +219,7 @@ export class MatchingEngine {
         order.feeAsset = market?.quoteAsset || 'USDT';
 
         this.openOrders.delete(orderId);
-        orderBookManager.removeUserOrder(orderId);
+        this.orderBook.removeUserOrder(orderId);
         order.limitPrice = order.price;
         order.price = fillPrice;
         this.orderHistory.unshift(order);
