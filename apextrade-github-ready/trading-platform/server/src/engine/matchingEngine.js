@@ -1,6 +1,6 @@
 import { getMarket } from '../config/markets.js';
 import { orderBookManager } from './orderBook.js';
-import { portfolioService as defaultPortfolioService } from '../services/this.portfolioService.js';
+import { portfolioService as defaultPortfolioService } from '../services/portfolioService.js';
 
 /**
  * Order Matching and Execution Engine
