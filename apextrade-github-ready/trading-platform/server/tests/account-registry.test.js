@@ -32,6 +32,14 @@ test('registry keeps the existing default demo account available', () => {
   assert.deepEqual(registry.listAccountIds(), ['demo']);
 });
 
+test('registry wires a custom default portfolio into its default matching engine', () => {
+  const defaultPortfolio = new PortfolioService();
+  const registry = new AccountRegistry({ defaultPortfolio, orderBook: new OrderBookManager() });
+
+  assert.equal(registry.requireAccount('demo').portfolioService, defaultPortfolio);
+  assert.equal(registry.requireAccount('demo').matchingEngine.portfolioService, defaultPortfolio);
+});
+
 test('registry creates uniquely identified accounts with independent services', () => {
   const registry = createRegistry();
   const first = registry.createAccount({ id: 'user-a' });
