@@ -71,12 +71,7 @@ export class PortfolioService {
     const assetValueByCurrency = {};
     for (const [asset, quantity] of Object.entries(this.balances)) {
       if (['USD', 'USDT'].includes(asset) || Number(quantity) <= 0) continue;
-      const market = Object.values(
-        Object.fromEntries(
-          [...new Set(this.positions.map(pos => pos.symbol))].map(symbol => [symbol, getMarket(symbol)])
-        )
-      ).find(item => item?.baseAsset === asset) || null;
-      const assetMarket = market || getMarket(`${asset}/USDT`) || getMarket(`${asset}/USD`);
+      const assetMarket = getMarket(`${asset}/USDT`) || getMarket(`${asset}/USD`);
       if (!assetMarket) continue;
       const markPrice = Number(currentPrices[assetMarket.symbol]) > 0
         ? Number(currentPrices[assetMarket.symbol]) : assetMarket.basePrice;
