@@ -1,13 +1,14 @@
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
+import { deriveLivePortfolio } from '../utils/deriveLivePortfolio.js';
 import { api } from '../services/api.js';
 import { useTrading } from './TradingContext.jsx';
 
 const PortfolioContext = createContext(null);
 
 export function PortfolioProvider({ children }) {
-  const { tickers } = useTrading();
+  const { tickers, markets } = useTrading();
 
-  const [portfolio, setPortfolio] = useState({
+  const [portfolioSnapshot, setPortfolioSnapshot] = useState({
     balances: { USDT: 10000, USD: 10000 },
     equity: 10000,
     cashBalance: 10000,
@@ -17,6 +18,11 @@ export function PortfolioProvider({ children }) {
     marginLevel: 999.9,
     positions: []
   });
+
+  const portfolio = useMemo(
+    () => deriveLivePortfolio(portfolioSnapshot, tickers, markets),
+    [portfolioSnapshot, tickers, markets]
+  );
 
   const [openOrders, setOpenOrders] = useState([]);
   const [orderHistory, setOrderHistory] = useState([]);
@@ -35,7 +41,7 @@ export function PortfolioProvider({ children }) {
   const refreshPortfolio = useCallback(async () => {
     try {
       const data = await api.getPortfolio();
-      setPortfolio(data);
+      setPortfolioSnapshot(data);
     } catch (err) {
       console.error('Failed to refresh portfolio:', err);
     }
@@ -60,52 +66,6 @@ export function PortfolioProvider({ children }) {
     refreshPortfolio();
     refreshOrders();
   }, [refreshPortfolio, refreshOrders]);
-
-  // Recalculate dynamic unrealized PnL when mark prices tick
-  useEffect(() => {
-    if (!portfolio.positions || portfolio.positions.length === 0) return;
-
-    let totalPnl = 0;
-    let totalMargin = 0;
-
-    const updatedPositions = portfolio.positions.map(pos => {
-      const ticker = tickers[pos.symbol];
-      const markPrice = ticker ? ticker.price : pos.entryPrice;
-
-      let pnl = 0;
-      if (pos.side === 'LONG') {
-        pnl = (markPrice - pos.entryPrice) * pos.quantity;
-      } else {
-        pnl = (pos.entryPrice - markPrice) * pos.quantity;
-      }
-
-      const pnlPercent = pos.margin > 0 ? (pnl / pos.margin) * 100 : 0;
-      totalPnl += pnl;
-      totalMargin += pos.margin;
-
-      return {
-        ...pos,
-        markPrice,
-        unrealizedPnl: Number(pnl.toFixed(2)),
-        pnlPercent: Number(pnlPercent.toFixed(2))
-      };
-    });
-
-    const cash = portfolio.cashBalance;
-    const equity = Number((cash + totalPnl).toFixed(2));
-    const available = Number(Math.max(0, cash - totalMargin).toFixed(2));
-    const marginLevel = totalMargin > 0 ? Number(((equity / totalMargin) * 100).toFixed(2)) : 999.9;
-
-    setPortfolio(prev => ({
-      ...prev,
-      equity,
-      availableMargin: available,
-      totalMarginUsed: Number(totalMargin.toFixed(2)),
-      totalUnrealizedPnl: Number(totalPnl.toFixed(2)),
-      marginLevel,
-      positions: updatedPositions
-    }));
-  }, [tickers]);
 
   const placeOrder = async (orderPayload) => {
     setLoading(true);
