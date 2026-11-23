@@ -218,6 +218,9 @@ test('Trading Engine Suite', async (t) => {
 
   await t.test('includes both USD and USDT quote balances in portfolio equity', () => {
     portfolioService.resetAll();
+    portfolioService.balances.BTC = 0;
+    portfolioService.balances.ETH = 0;
+    portfolioService.balances.SOL = 0;
     portfolioService.openPosition({
       symbol: 'AAPL/USD', side: 'LONG', entryPrice: 230,
       quantity: 1, leverage: 1, entryFee: 0.1
@@ -229,6 +232,36 @@ test('Trading Engine Suite', async (t) => {
     assert.equal(portfolio.equity, 20009.9);
     assert.equal(portfolio.cashBalance, 19999.9);
   });
+
+
+  await t.test('marks non-quote wallet holdings into total portfolio equity', () => {
+    portfolioService.resetAll();
+    const portfolio = portfolioService.getPortfolio({
+      'BTC/USDT': 65000,
+      'ETH/USDT': 3480,
+      'SOL/USDT': 168.75
+    });
+    assert.equal(portfolio.assetValueByCurrency.USDT, 19241.25);
+    assert.equal(portfolio.totalAssetValue, 19241.25);
+    assert.equal(portfolio.equity, 39241.25);
+  });
+
+  await t.test('recalculates effective leverage when averaging into a position', () => {
+    portfolioService.resetAll();
+    const first = portfolioService.openPosition({
+      symbol: 'BTC/USDT', side: 'LONG', entryPrice: 60000,
+      quantity: 0.1, leverage: 10
+    });
+    const averaged = portfolioService.openPosition({
+      symbol: 'BTC/USDT', side: 'LONG', entryPrice: 66000,
+      quantity: 0.1, leverage: 20
+    });
+    assert.equal(averaged.id, first.id);
+    assert.equal(averaged.entryPrice, 63000);
+    assert.equal(averaged.margin, 630);
+    assert.equal(averaged.leverage, 20);
+  });
+
 
   await t.test('allows an opposite-side partial close when free margin is low', () => {
     portfolioService.resetAll();
