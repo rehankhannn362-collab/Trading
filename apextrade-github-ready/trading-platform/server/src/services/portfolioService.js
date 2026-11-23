@@ -223,7 +223,7 @@ export class PortfolioService {
 
       this.balances[quote] = Number(balanceAfterClose.toFixed(8));
       const netRealizedPnl = grossPnl - allocatedEntryFee - closingFee;
-      const closedRecord = this.recordClosedTrade({
+      this.recordClosedTrade({
         symbol,
         side: existing.side,
         entryPrice: existing.entryPrice,
