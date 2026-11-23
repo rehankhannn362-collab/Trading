@@ -56,10 +56,16 @@ test('Trading Engine Suite', async (t) => {
 
   await t.test('triggers and fills resting LIMIT order when price moves', () => {
     // When market drops to 3465, the 3470 limit buy should fill!
+    const balanceBeforeFill = portfolioService.getBalances().USDT;
     const fills = matchingEngine.checkTriggers('ETH/USDT', 3465.00);
     assert.equal(fills.length, 1);
     assert.equal(fills[0].status, 'FILLED');
     assert.equal(fills[0].price, 3465.00); // Better execution than the 3470 limit.
+    assert.ok(fills[0].fee > 0);
+    assert.equal(
+      portfolioService.getBalances().USDT,
+      Number((balanceBeforeFill - fills[0].fee).toFixed(8))
+    );
 
     const openOrders = matchingEngine.getOpenOrders('ETH/USDT');
     assert.equal(openOrders.length, 0, 'Limit order should no longer be open');
@@ -148,11 +154,14 @@ test('Trading Engine Suite', async (t) => {
   await t.test('marketable LIMIT orders receive the current market price', () => {
     portfolioService.resetAll();
     matchingEngine.resetAll();
+    const balanceBefore = portfolioService.getBalances().USD;
     const order = matchingEngine.placeOrder({
       symbol: 'AAPL/USD', side: 'BUY', type: 'LIMIT',
       price: 240, quantity: 1, leverage: 1, currentMarketPrice: 230
     });
     assert.equal(order.status, 'FILLED');
+    assert.ok(order.fee > 0);
+    assert.equal(portfolioService.getBalances().USD, Number((balanceBefore - order.fee).toFixed(8)));
     assert.equal(order.price, 230);
     assert.equal(order.filled, 1);
   });
@@ -188,6 +197,102 @@ test('Trading Engine Suite', async (t) => {
     assert.equal(order.status, 'OPEN');
     matchingEngine.resetAll();
     assert.equal(matchingEngine.getOpenOrders().length, 0);
+  });
+
+
+  await t.test('deducts entry and exit fees from quote balance and records net realized PnL', () => {
+    portfolioService.resetAll();
+    matchingEngine.resetAll();
+    const startingBalance = portfolioService.getBalances().USDT;
+    const order = matchingEngine.placeOrder({
+      symbol: 'BTC/USDT', side: 'BUY', type: 'MARKET',
+      quantity: 0.1, leverage: 10, currentMarketPrice: 65000
+    });
+
+    assert.ok(order.fee > 0);
+    assert.equal(portfolioService.getBalances().USDT, Number((startingBalance - order.fee).toFixed(8)));
+
+    const position = portfolioService.positions.find(p => p.symbol === 'BTC/USDT');
+    assert.equal(position.entryFees, order.fee);
+
+    const closed = portfolioService.closePosition(position.id, 66000);
+    const expectedExitFee = 66000 * 0.1 * 0.0005;
+    assert.equal(closed.exitFee, Number(expectedExitFee.toFixed(8)));
+    assert.equal(closed.realizedPnl, Number((closed.grossPnl - closed.entryFee - closed.exitFee).toFixed(2)));
+    assert.equal(
+      portfolioService.getBalances().USDT,
+      Number((startingBalance - order.fee + closed.grossPnl - expectedExitFee).toFixed(8))
+    );
+  });
+
+  await t.test('includes both USD and USDT quote balances in portfolio equity', () => {
+    portfolioService.resetAll();
+    portfolioService.balances.BTC = 0;
+    portfolioService.balances.ETH = 0;
+    portfolioService.balances.SOL = 0;
+    portfolioService.openPosition({
+      symbol: 'AAPL/USD', side: 'LONG', entryPrice: 230,
+      quantity: 1, leverage: 1, entryFee: 0.1
+    });
+
+    const portfolio = portfolioService.getPortfolio({ 'AAPL/USD': 240 });
+    assert.equal(portfolio.equityByCurrency.USD, 10009.9);
+    assert.equal(portfolio.equityByCurrency.USDT, 10000);
+    assert.equal(portfolio.equity, 20009.9);
+    assert.equal(portfolio.cashBalance, 19999.9);
+  });
+
+
+  await t.test('marks non-quote wallet holdings into total portfolio equity', () => {
+    portfolioService.resetAll();
+    const portfolio = portfolioService.getPortfolio({
+      'BTC/USDT': 65000,
+      'ETH/USDT': 3480,
+      'SOL/USDT': 168.75
+    });
+    assert.equal(portfolio.assetValueByCurrency.USDT, 19241.25);
+    assert.equal(portfolio.totalAssetValue, 19241.25);
+    assert.equal(portfolio.equity, 39241.25);
+  });
+
+  await t.test('recalculates effective leverage when averaging into a position', () => {
+    portfolioService.resetAll();
+    const first = portfolioService.openPosition({
+      symbol: 'BTC/USDT', side: 'LONG', entryPrice: 60000,
+      quantity: 0.1, leverage: 10
+    });
+    const averaged = portfolioService.openPosition({
+      symbol: 'BTC/USDT', side: 'LONG', entryPrice: 66000,
+      quantity: 0.1, leverage: 20
+    });
+    assert.equal(averaged.id, first.id);
+    assert.equal(averaged.entryPrice, 63000);
+    assert.equal(averaged.margin, 930);
+    assert.equal(averaged.leverage, 13.5484);
+  });
+
+
+  await t.test('allows an opposite-side partial close when free margin is low', () => {
+    portfolioService.resetAll();
+    matchingEngine.resetAll();
+    const long = portfolioService.openPosition({
+      symbol: 'BTC/USDT', side: 'LONG', entryPrice: 60000,
+      quantity: 0.1, leverage: 10
+    });
+    portfolioService.balances.USDT = 100;
+
+    const closeOrder = matchingEngine.placeOrder({
+      symbol: 'BTC/USDT', side: 'SELL', type: 'MARKET',
+      quantity: 0.05, leverage: 10, currentMarketPrice: 59000
+    });
+
+    assert.equal(closeOrder.status, 'FILLED');
+    const remaining = portfolioService.positions.find(p => p.id === long.id);
+    assert.ok(remaining);
+    assert.equal(remaining.side, 'LONG');
+    assert.equal(remaining.quantity, 0.05);
+    assert.ok(closeOrder.fee > 0);
+    assert.equal(portfolioService.getClosedTrades(1)[0].reason, 'PARTIAL_CLOSE');
   });
 
 });

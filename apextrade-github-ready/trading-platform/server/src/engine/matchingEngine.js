@@ -45,7 +45,7 @@ export class MatchingEngine {
       const basePrice = Number(currentMarketPrice) > 0 ? Number(currentMarketPrice) : market.basePrice;
       const slippageRate = (side === 'BUY' ? 1 : -1) * 0.0002;
       const fillPrice = Number((basePrice * (1 + slippageRate)).toFixed(market.pricePrecision));
-      const fee = Number((fillPrice * qty * market.takerFee).toFixed(4));
+      const fee = Number((fillPrice * qty * market.takerFee).toFixed(8));
 
       // Open position in portfolio service
       const positionSide = side === 'BUY' ? 'LONG' : 'SHORT';
@@ -56,6 +56,7 @@ export class MatchingEngine {
         quantity: qty,
         leverage: lev,
         takeProfit: tpVal,
+        entryFee: fee,
         stopLoss: slVal
       });
 
@@ -84,12 +85,16 @@ export class MatchingEngine {
     }
 
     // LIMIT Order handling
-    const limitPrice = Number(Number(price).toFixed(market.pricePrecision));
-    if (isNaN(limitPrice) || limitPrice <= 0) {
+    const rawLimitPrice = Number(price);
+    if (!Number.isFinite(rawLimitPrice) || rawLimitPrice <= 0) {
+      throw new Error('Valid limit price is required for LIMIT orders');
+    }
+    const limitPrice = Number(rawLimitPrice.toFixed(market.pricePrecision));
+    if (!Number.isFinite(limitPrice) || limitPrice <= 0) {
       throw new Error('Valid limit price is required for LIMIT orders');
     }
 
-    const currentPrice = currentMarketPrice || market.basePrice;
+    const currentPrice = Number(currentMarketPrice) > 0 ? Number(currentMarketPrice) : market.basePrice;
     const isImmediatelyMarketable =
       (side === 'BUY' && limitPrice >= currentPrice) ||
       (side === 'SELL' && limitPrice <= currentPrice);
@@ -98,7 +103,7 @@ export class MatchingEngine {
       // Immediate taker fill at current market price or better
       // Marketable limits receive the current market price (price improvement).
       const fillPrice = currentPrice;
-      const fee = Number((fillPrice * qty * market.takerFee).toFixed(4));
+      const fee = Number((fillPrice * qty * market.takerFee).toFixed(8));
       const positionSide = side === 'BUY' ? 'LONG' : 'SHORT';
 
       const position = portfolioService.openPosition({
@@ -108,7 +113,8 @@ export class MatchingEngine {
         quantity: qty,
         leverage: lev,
         takeProfit: tpVal,
-        stopLoss: slVal
+        stopLoss: slVal,
+        entryFee: fee
       });
 
       const executedOrder = {
@@ -190,7 +196,7 @@ export class MatchingEngine {
         const market = getMarket(symbol);
         // Resting limits execute at the triggering market price, not the limit price.
         const fillPrice = Number(currentPrice);
-        const fee = Number((fillPrice * order.quantity * (market?.makerFee || 0.0002)).toFixed(4));
+        const fee = Number((fillPrice * order.quantity * (market?.makerFee || 0.0002)).toFixed(8));
         const positionSide = order.side === 'BUY' ? 'LONG' : 'SHORT';
 
         const position = portfolioService.openPosition({
@@ -200,6 +206,7 @@ export class MatchingEngine {
           quantity: order.quantity,
           leverage: order.leverage,
           takeProfit: order.takeProfit,
+          entryFee: fee,
           stopLoss: order.stopLoss
         });
 
