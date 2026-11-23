@@ -56,10 +56,16 @@ test('Trading Engine Suite', async (t) => {
 
   await t.test('triggers and fills resting LIMIT order when price moves', () => {
     // When market drops to 3465, the 3470 limit buy should fill!
+    const balanceBeforeFill = portfolioService.getBalances().USDT;
     const fills = matchingEngine.checkTriggers('ETH/USDT', 3465.00);
     assert.equal(fills.length, 1);
     assert.equal(fills[0].status, 'FILLED');
     assert.equal(fills[0].price, 3465.00); // Better execution than the 3470 limit.
+    assert.ok(fills[0].fee > 0);
+    assert.equal(
+      portfolioService.getBalances().USDT,
+      Number((balanceBeforeFill - fills[0].fee).toFixed(8))
+    );
 
     const openOrders = matchingEngine.getOpenOrders('ETH/USDT');
     assert.equal(openOrders.length, 0, 'Limit order should no longer be open');
@@ -148,11 +154,14 @@ test('Trading Engine Suite', async (t) => {
   await t.test('marketable LIMIT orders receive the current market price', () => {
     portfolioService.resetAll();
     matchingEngine.resetAll();
+    const balanceBefore = portfolioService.getBalances().USD;
     const order = matchingEngine.placeOrder({
       symbol: 'AAPL/USD', side: 'BUY', type: 'LIMIT',
       price: 240, quantity: 1, leverage: 1, currentMarketPrice: 230
     });
     assert.equal(order.status, 'FILLED');
+    assert.ok(order.fee > 0);
+    assert.equal(portfolioService.getBalances().USD, Number((balanceBefore - order.fee).toFixed(8)));
     assert.equal(order.price, 230);
     assert.equal(order.filled, 1);
   });
