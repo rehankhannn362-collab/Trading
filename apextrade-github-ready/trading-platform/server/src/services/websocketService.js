@@ -13,6 +13,7 @@ export class WebSocketService {
   constructor() {
     this.wss = null;
     this.clients = new Map(); // ws -> Set(channels)
+    this.unsubscribers = [];
   }
 
   initialize(server) {
@@ -57,7 +58,7 @@ export class WebSocketService {
     });
 
     // Wire up Market Simulator events
-    simulator.subscribeTicks((symbol, ticker, trade) => {
+    this.unsubscribers.push(simulator.subscribeTicks((symbol, ticker, trade) => {
       orderBookManager.setMarkPrice(symbol, ticker.price);
 
       // Check resting limit orders trigger
@@ -98,9 +99,9 @@ export class WebSocketService {
           data: bookSnapshot
         });
       }
-    });
+    }));
 
-    simulator.subscribeTrades((symbol, trade) => {
+    this.unsubscribers.push(simulator.subscribeTrades((symbol, trade) => {
       const channel = `trades:${symbol}`;
       if (this.hasChannelSubscribers(channel)) {
         this.broadcastToChannel(channel, {
@@ -109,9 +110,9 @@ export class WebSocketService {
           data: trade
         });
       }
-    });
+    }));
 
-    simulator.subscribeCandles((symbol, timeframe, candle, isClosed) => {
+    this.unsubscribers.push(simulator.subscribeCandles((symbol, timeframe, candle, isClosed) => {
       const channel = `candles:${symbol}:${timeframe}`;
       if (this.hasChannelSubscribers(channel)) {
         this.broadcastToChannel(channel, {
@@ -122,17 +123,27 @@ export class WebSocketService {
           data: candle
         });
       }
-    });
+    }));
 
     // Wire up order fill notifications
-    matchingEngine.onFill((order, position) => {
+    this.unsubscribers.push(matchingEngine.onFill((order, position) => {
       this.broadcastPortfolioUpdate();
       this.broadcastToChannel('portfolio', {
         type: 'order:filled',
         order,
         position
       });
-    });
+    }));
+  }
+
+  close() {
+    for (const unsubscribe of this.unsubscribers.splice(0)) unsubscribe();
+    for (const ws of this.clients.keys()) ws.close();
+    this.clients.clear();
+    if (this.wss) {
+      this.wss.close();
+      this.wss = null;
+    }
   }
 
   handleClientMessage(ws, message) {
