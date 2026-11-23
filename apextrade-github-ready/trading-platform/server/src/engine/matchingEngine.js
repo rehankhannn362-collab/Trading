@@ -57,7 +57,6 @@ export class MatchingEngine {
         leverage: lev,
         takeProfit: tpVal,
         entryFee: fee,
-        entryFee: fee,
         stopLoss: slVal
       });
 
@@ -114,7 +113,8 @@ export class MatchingEngine {
         quantity: qty,
         leverage: lev,
         takeProfit: tpVal,
-        stopLoss: slVal
+        stopLoss: slVal,
+        entryFee: fee
       });
 
       const executedOrder = {
