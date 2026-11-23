@@ -68,17 +68,37 @@ export class PortfolioService {
       'USD',
       'USDT'
     ]);
+    const assetValueByCurrency = {};
+    for (const [asset, quantity] of Object.entries(this.balances)) {
+      if (['USD', 'USDT'].includes(asset) || Number(quantity) <= 0) continue;
+      const market = Object.values(
+        Object.fromEntries(
+          [...new Set(this.positions.map(pos => pos.symbol))].map(symbol => [symbol, getMarket(symbol)])
+        )
+      ).find(item => item?.baseAsset === asset) || null;
+      const assetMarket = market || getMarket(`${asset}/USDT`) || getMarket(`${asset}/USD`);
+      if (!assetMarket) continue;
+      const markPrice = Number(currentPrices[assetMarket.symbol]) > 0
+        ? Number(currentPrices[assetMarket.symbol]) : assetMarket.basePrice;
+      assetValueByCurrency[assetMarket.quoteAsset] =
+        (assetValueByCurrency[assetMarket.quoteAsset] || 0) + Number(quantity) * markPrice;
+    }
+    for (const currency of Object.keys(assetValueByCurrency)) quoteCurrencies.add(currency);
+
     const equityByCurrency = {};
     const availableMarginByCurrency = {};
     let cashBalance = 0;
     let equity = 0;
     let availableMargin = 0;
+    let totalAssetValue = 0;
 
     for (const currency of quoteCurrencies) {
       const cash = Number(this.balances[currency] || 0);
       const pnl = Number(unrealizedPnlByCurrency[currency] || 0);
+      const assetValue = Number(assetValueByCurrency[currency] || 0);
       const margin = Number(marginUsedByCurrency[currency] || 0);
-      const currencyEquity = Number((cash + pnl).toFixed(2));
+      const currencyEquity = Number((cash + pnl + assetValue).toFixed(2));
+      totalAssetValue += assetValue;
       const currencyAvailable = Number((cash - margin).toFixed(2));
 
       equityByCurrency[currency] = currencyEquity;
@@ -94,6 +114,10 @@ export class PortfolioService {
       balances: this.getBalances(),
       equity: Number(equity.toFixed(2)),
       equityByCurrency,
+      totalAssetValue: Number(totalAssetValue.toFixed(2)),
+      assetValueByCurrency: Object.fromEntries(
+        Object.entries(assetValueByCurrency).map(([currency, amount]) => [currency, Number(amount.toFixed(2))])
+      ),
       cashBalance: Number(cashBalance.toFixed(2)),
       availableMargin: Number(availableMargin.toFixed(2)),
       availableMarginByCurrency,
@@ -170,6 +194,7 @@ export class PortfolioService {
       existing.entryPrice = Number((totalCost / totalQty).toFixed(market.pricePrecision));
       existing.quantity = Number(totalQty.toFixed(market.quantityPrecision));
       existing.margin = Number((existing.margin + marginRequired).toFixed(2));
+      existing.leverage = Number(((existing.entryPrice * existing.quantity) / existing.margin).toFixed(4));
       existing.entryFees = Number(((existing.entryFees || 0) + fee).toFixed(8));
       this.balances[quote] = Number((quoteBalance - fee).toFixed(8));
       existing.liquidationPrice = Number(
